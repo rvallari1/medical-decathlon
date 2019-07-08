@@ -172,16 +172,15 @@ validation_data_params = {"dim": (args.patch_height, args.patch_width, args.patc
                           "n_out_channels": 1,
                           "train_test_split": args.train_test_split,
                           "augment": False,
-                          "shuffle": False,
-                          "seed": args.random_seed}
+                          "shuffle": True,
+                          "seed": hvd.rank}
 validation_generator = DataGenerator(False, args.data_path,
                                      **validation_data_params)
 
 # Fit the model
 # Do at least 3 steps for training and validation
 steps_per_epoch = max(3, training_generator.get_length()//(args.bz*hvd.size()))
-validation_steps = max(
-    3, 3*training_generator.get_length()//(args.bz*hvd.size()))
+validation_steps = validation_generator.get_length()//(args.bz*hvd.size())
 
 """
 Keras Data Pipeline using Sequence generator
@@ -206,7 +205,7 @@ unet_model.model.fit_generator(training_generator,
                     steps_per_epoch=steps_per_epoch,
                     epochs=args.epochs, verbose=verbose,
                     validation_data=validation_generator,
-                    # validation_steps=validation_steps,
+                    validation_steps=validation_steps,
                     callbacks=callbacks,
                     max_queue_size=args.num_prefetched_batches,
                     workers=args.num_data_loaders,
@@ -223,7 +222,7 @@ if hvd.rank() == 0:
 
     m = model.evaluate_generator(testing_generator, verbose=1,
                                  max_queue_size=args.num_prefetched_batches,
-                                 workers=args.num_data_loaders,
+                                 workers=0,
                                  use_multiprocessing=False)
 
     print("\n\nTest metrics")
